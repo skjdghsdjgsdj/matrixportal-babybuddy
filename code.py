@@ -115,10 +115,10 @@ class UI:
         self.icon_tile_grids = {}
         self.init_components()
 
-        self.update_label(UI.LAST_FEEDING, "", 0x660000)
-        self.update_label(UI.TIMER, "", 0x444444)
-        self.update_label(UI.LAST_PEED, "", 0x006699)
-        self.update_label(UI.LAST_POOPED, "", 0x995533)
+        self.update_label(UI.LAST_FEEDING, "", 0xFF0000)
+        self.update_label(UI.TIMER, "", 0xFFFFFF)
+        self.update_label(UI.LAST_PEED, "", 0x0099FF)
+        self.update_label(UI.LAST_POOPED, "", 0xFFAA66)
 
     def init_components(self) -> None:
         self.init_labels()
@@ -244,8 +244,15 @@ UI.GENERIC_TIMER = 3
 matrixportal = MatrixPortal(color_order = "RBG")
 ui = UI(matrixportal, rtc)
 
+last_rtc_update = rtc.now()
+
 while True:
     try:
+        if (rtc.now() - last_rtc_update).seconds > (24 * 60 * 60):
+            print("RTC sync")
+            rtc.sync(api.requests)
+            last_rtc_update = rtc.now()
+
         last_feeding, method = api.get_last_feeding()
         last_peed, last_pooped = api.get_last_changes()
         timer_started, timer_type = api.get_current_timer()
