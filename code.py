@@ -241,7 +241,8 @@ UI.FEEDING_TIMER = 1
 UI.SLEEP_TIMER = 2,
 UI.GENERIC_TIMER = 3
 
-ui = UI(MatrixPortal(color_order = "RBG"), rtc)
+matrixportal = MatrixPortal(color_order = "RBG")
+ui = UI(matrixportal, rtc)
 
 while True:
     try:
@@ -249,10 +250,12 @@ while True:
         last_peed, last_pooped = api.get_last_changes()
         timer_started, timer_type = api.get_current_timer()
 
+        matrixportal.display.auto_refresh = False
         ui.update_last_feeding(last_feeding, method)
         ui.update_timer(timer_started, timer_type)
         ui.update_last_peed(last_peed)
         ui.update_last_pooped(last_pooped)
+        matrixportal.display.auto_refresh = True
     except Exception as e:
         print(e)
     finally:
