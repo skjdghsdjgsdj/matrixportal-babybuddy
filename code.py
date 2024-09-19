@@ -25,6 +25,10 @@ class API:
         self.requests: Optional[adafruit_requests.Session] = None
         self.init_requests()
 
+    @staticmethod
+    def to_datetime(as_str: str) -> adafruit_datetime.datetime:
+        return adafruit_datetime.datetime.fromisoformat(as_str)
+
     def init_requests(self) -> None:
         ssid = os.getenv("CIRCUITPY_WIFI_SSID")
         password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
@@ -51,6 +55,13 @@ class API:
 
         return response.json()
 
+    def get_last_sleep(self) -> Optional[adafruit_datetime.datetime]:
+        sleeps = self.get("sleep/?limit=1")
+        if len(sleeps["results"]) == 0:
+            return None
+
+        return API.to_datetime(sleeps["results"][0]["end"])
+
     def get_last_feeding(self) -> tuple[Optional[adafruit_datetime.datetime], Optional[str]]:
         feedings = self.get("feedings/?limit=1")
         if len(feedings["results"]) == 0:
@@ -68,7 +79,7 @@ class API:
         elif last_feeding["method"] == "both breasts":
             method = "RL"
 
-        return adafruit_datetime.datetime.fromisoformat(last_feeding["start"]), method
+        return API.to_datetime(last_feeding["start"]), method
 
     def get_last_changes(self) -> tuple[Optional[adafruit_datetime.datetime], Optional[adafruit_datetime]]:
         last_peed = None
@@ -77,9 +88,9 @@ class API:
         changes = self.get("changes/?limit=20")
         for change in changes["results"]:
             if last_peed is None and change["wet"]:
-                last_peed = adafruit_datetime.datetime.fromisoformat(change["time"])
+                last_peed = API.to_datetime(change["time"])
             if last_pooped is None and change["solid"]:
-                last_pooped = adafruit_datetime.datetime.fromisoformat(change["time"])
+                last_pooped = API.to_datetime(change["time"])
 
             if last_peed is not None and last_pooped is not None:
                 break
@@ -94,8 +105,8 @@ class API:
 
         timer = timers["results"][0]
 
-        timer_started = adafruit_datetime.datetime.fromisoformat(timer["start"])
-        timer_type = UI.GENERIC_TIMER
+        timer_started = API.to_datetime(timer["start"])
+        timer_type = UI.NO_TIMER
 
         if timer["name"] is not None:
             name = timer["name"].lower()
@@ -103,22 +114,59 @@ class API:
                 timer_type = UI.FEEDING_TIMER
             elif "sleep" in name:
                 timer_type = UI.SLEEP_TIMER
-            else:
-                timer_type = UI.GENERIC_TIMER
+
+        if timer_type == UI.NO_TIMER:
+            return None, UI.NO_TIMER
 
         return timer_started, timer_type
 
 class UI:
     def __init__(self, matrixportal: MatrixPortal, rtc: ExternalRTC):
+        self.active_sleep_icon = None
+        self.active_feeding_icon = None
+        self.inactive_feeding_icon = None
+        self.inactive_sleep_icon = None
         self.matrixportal = matrixportal
         self.rtc = rtc
         self.icon_tile_grids = {}
         self.init_components()
 
-        self.update_label(UI.LAST_FEEDING, "", 0xFF0000)
-        self.update_label(UI.TIMER, "", 0xFFFFFF)
-        self.update_label(UI.LAST_PEED, "", 0x0099FF)
-        self.update_label(UI.LAST_POOPED, "", 0xFFAA66)
+        self.update_label(UI.FEEDING, "", 0x440000)
+        self.update_label(UI.SLEEP, "", 0x440000)
+        self.update_label(UI.LAST_PEED, "", 0x004455)
+        self.update_label(UI.LAST_POOPED, "", 0x554400)
+
+    def update(self,
+        last_feeding: Optional[adafruit_datetime.datetime],
+        last_feeding_method: Optional[str],
+        last_sleep: Optional[adafruit_datetime.datetime],
+        last_peed: Optional[adafruit_datetime.datetime],
+        last_pooped: Optional[adafruit_datetime.datetime],
+        current_timer_started: Optional[adafruit_datetime.datetime],
+        current_timer_type: Optional[int]
+    ):
+        is_feeding_timer_running = current_timer_started is not None and current_timer_type == UI.FEEDING_TIMER
+        is_sleep_timer_running = current_timer_started is not None and current_timer_type == UI.SLEEP_TIMER
+
+        self.active_feeding_icon.hidden = not is_feeding_timer_running
+        self.inactive_feeding_icon.hidden = is_feeding_timer_running
+        self.active_sleep_icon.hidden = not is_sleep_timer_running
+        self.inactive_sleep_icon.hidden = is_sleep_timer_running
+
+        self.update_label(
+            UI.FEEDING,
+            self.delta_to_str(current_timer_started) if is_feeding_timer_running else (self.delta_to_str(last_feeding) + " " + last_feeding_method),
+            0x444444 if is_feeding_timer_running else 0x440000
+        )
+
+        self.update_label(
+            UI.SLEEP,
+            self.delta_to_str(current_timer_started if is_sleep_timer_running else last_sleep),
+            0x444444 if is_sleep_timer_running else 0x440000
+        )
+
+        self.update_label(UI.LAST_PEED, self.delta_to_str(last_peed, spaces = False))
+        self.update_label(UI.LAST_POOPED, self.delta_to_str(last_pooped, spaces = False))
 
     def init_components(self) -> None:
         self.init_labels()
@@ -126,44 +174,43 @@ class UI:
 
     def init_labels(self) -> None:
         self.matrixportal.add_text(
-            text_font = "/big.bdf",
-            text_position = (self.matrixportal.display.width // 2, 0),
-            text_anchor_point = (0.5, 0)
-        )
-
-        self.matrixportal.add_text(
-            text_font = "/big.bdf",
-            text_position = (self.matrixportal.display.width - 7, 12),
+            text_font = "/assets/big.bdf",
+            text_position = (self.matrixportal.display.width - 1, 0),
             text_anchor_point = (1, 0)
         )
 
         self.matrixportal.add_text(
-            text_font = "/small.bdf",
+            text_font = "/assets/big.bdf",
+            text_position = (self.matrixportal.display.width - 1, 12),
+            text_anchor_point = (1, 0)
+        )
+
+        self.matrixportal.add_text(
+            text_font = "/assets/small.bdf",
             text_position = (0, self.matrixportal.display.height - 1),
             text_anchor_point = (0, 1)
         )
 
         self.matrixportal.add_text(
-            text_font = "/small.bdf",
+            text_font = "/assets/small.bdf",
             text_position = (self.matrixportal.display.width + 1, self.matrixportal.display.height - 1),
             text_anchor_point = (1, 1)
         )
 
     def init_icons(self) -> None:
-        icons = {
-            UI.GENERIC_TIMER: "/timer.bmp",
-            UI.FEEDING_TIMER: "/feeding.bmp",
-            UI.SLEEP_TIMER: "/sleep.bmp"
-        }
+        self.active_feeding_icon = self.init_icon(path = "/assets/feeding-active.bmp", y = 2)
+        self.inactive_feeding_icon = self.init_icon(path = "/assets/feeding-inactive.bmp", y = 2)
+        self.active_sleep_icon = self.init_icon(path = "/assets/sleep-active.bmp", y = 15)
+        self.inactive_sleep_icon = self.init_icon(path = "/assets/sleep-inactive.bmp", y = 15)
 
-        for index, bmp_path in icons.items():
-            bitmap, palette = adafruit_imageload.load(bmp_path)
-            tile_grid = displayio.TileGrid(bitmap, pixel_shader = palette)
-            tile_grid.x = 7
-            tile_grid.y = 15
-            tile_grid.hidden = True
-            self.matrixportal.display.root_group.append(tile_grid)
-            self.icon_tile_grids[index] = tile_grid
+    def init_icon(self, path: str, y: int) -> displayio.TileGrid:
+        bitmap, palette = adafruit_imageload.load(path)
+        tile_grid = displayio.TileGrid(bitmap, pixel_shader = palette)
+        tile_grid.x = 2
+        tile_grid.y = y
+        tile_grid.hidden = True
+        self.matrixportal.display.root_group.append(tile_grid)
+        return tile_grid
 
     def update_label(self, label_index: int, text: str, color: Optional[int] = None) -> None:
         self.matrixportal.set_text(text, label_index)
@@ -171,6 +218,9 @@ class UI:
             self.matrixportal.set_text_color(color, label_index)
 
     def delta_to_str(self, datetime: adafruit_datetime.datetime, show_zero_hours: bool = False, spaces: bool = True) -> str:
+        if datetime is None:
+            return "-"
+
         now = self.rtc.now()
         delta = now - datetime
 
@@ -190,56 +240,20 @@ class UI:
             minutes = delta_seconds // 60 % 60
             return f"{hours}h {minutes}m" if spaces else f"{hours}h{minutes}m"
 
-    def update_timer(self, timer_started: Optional[adafruit_datetime.datetime], timer_type: int = 0) -> None:
-        if timer_started is None:
-            timer_type = UI.NO_TIMER
-
-        for index, tile_grid in self.icon_tile_grids.items():
-            hidden = (index != timer_type) or timer_type == UI.NO_TIMER
-            tile_grid.hidden = hidden
-
-        if timer_started is None:
-            label = ""
-        else:
-            label = self.delta_to_str(timer_started)
-
-        self.update_label(UI.TIMER, label)
-
-    def update_last_feeding(self, last_feeding: Optional[adafruit_datetime.datetime], method: Optional[str]) -> None:
-        label = "No feedings"
-        if last_feeding is not None:
-            label = self.delta_to_str(last_feeding, show_zero_hours = True)
-            if method is not None:
-                label += " " + method
-
-        self.update_label(UI.LAST_FEEDING,label)
-
-    def update_last_peed(self, last_peed: Optional[adafruit_datetime.datetime]) -> None:
-        self.update_label(
-            UI.LAST_PEED,
-            "No data" if last_peed is None else self.delta_to_str(last_peed, spaces = False)
-        )
-
-    def update_last_pooped(self, last_pooped: Optional[adafruit_datetime.datetime]) -> None:
-        self.update_label(
-            UI.LAST_POOPED,
-            "No data" if last_pooped is None else self.delta_to_str(last_pooped, spaces = False)
-        )
 
 api = API()
 
 rtc = ExternalRTC(board.I2C())
 rtc.sync(api.requests)
 
-UI.LAST_FEEDING = 0
-UI.TIMER = 1
+UI.FEEDING = 0
+UI.SLEEP = 1
 UI.LAST_PEED = 2
 UI.LAST_POOPED = 3
 
 UI.NO_TIMER = 0
 UI.FEEDING_TIMER = 1
-UI.SLEEP_TIMER = 2,
-UI.GENERIC_TIMER = 3
+UI.SLEEP_TIMER = 2
 
 matrixportal = MatrixPortal(color_order = "RBG")
 ui = UI(matrixportal, rtc)
@@ -256,12 +270,18 @@ while True:
         last_feeding, method = api.get_last_feeding()
         last_peed, last_pooped = api.get_last_changes()
         timer_started, timer_type = api.get_current_timer()
+        last_sleep = api.get_last_sleep()
 
         matrixportal.display.auto_refresh = False
-        ui.update_last_feeding(last_feeding, method)
-        ui.update_timer(timer_started, timer_type)
-        ui.update_last_peed(last_peed)
-        ui.update_last_pooped(last_pooped)
+        ui.update(
+            last_feeding = last_feeding,
+            last_feeding_method = method,
+            last_sleep = last_sleep,
+            last_peed = last_peed,
+            last_pooped = last_pooped,
+            current_timer_started = timer_started,
+            current_timer_type = timer_type
+        )
         matrixportal.display.auto_refresh = True
     except Exception as e:
         print(e)
