@@ -225,20 +225,21 @@ class UI:
         delta = now - datetime
 
         # noinspection PyUnresolvedReferences
-        delta_seconds = delta.seconds
+        delta_seconds = delta.seconds + (delta.days * 60 * 60 * 24)
 
         if delta_seconds < 60:
             return ("0h 0m" if spaces else "0h0m") if show_zero_hours else "0m"
-        elif delta_seconds < 60 * 60:
+
+        if delta_seconds < 60 * 60:
             label = f"{delta_seconds // 60}m"
             if show_zero_hours:
                 label = ("0h " if spaces else "0h") + label
 
             return label
-        else:
-            hours = delta_seconds // 60 // 60
-            minutes = delta_seconds // 60 % 60
-            return f"{hours}h {minutes}m" if spaces else f"{hours}h{minutes}m"
+
+        hours = delta_seconds // 60 // 60
+        minutes = delta_seconds // 60 % 60
+        return f"{hours}h {minutes}m" if spaces else f"{hours}h{minutes}m"
 
 
 api = API()
