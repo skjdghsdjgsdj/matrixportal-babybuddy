@@ -267,6 +267,7 @@ accelerometer = adafruit_lis3dh.LIS3DH_I2C(i2c =board.I2C(), address = 0x19)
 
 while True:
     try:
+        # noinspection PyUnresolvedReferences
         if (rtc.now() - last_rtc_update).seconds > (12 * 60 * 60):
             print("RTC sync")
             rtc.sync(api.requests)
