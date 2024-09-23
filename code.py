@@ -1,4 +1,5 @@
 import adafruit_datetime
+import adafruit_lis3dh
 import adafruit_requests
 import board
 from adafruit_matrixportal.matrixportal import MatrixPortal
@@ -257,9 +258,12 @@ UI.FEEDING_TIMER = 1
 UI.SLEEP_TIMER = 2
 
 matrixportal = MatrixPortal(color_order = "RBG")
+matrixportal.display.rotation = 180
 ui = UI(matrixportal, rtc)
 
 last_rtc_update = rtc.now()
+
+accelerometer = adafruit_lis3dh.LIS3DH_I2C(i2c =board.I2C(), address = 0x19)
 
 while True:
     try:
@@ -287,4 +291,15 @@ while True:
     except Exception as e:
         print(e)
     finally:
+        now = time.monotonic()
+        end = now + 20
+        while now < end:
+            x, y, z = accelerometer.acceleration
+            now = time.monotonic()
+
+            if y > 8 and matrixportal.display.rotation != 0: # right-side up
+                matrixportal.display.rotation = 0
+            elif y < -8 and matrixportal.display.rotation != 180: # upside down
+                matrixportal.display.rotation = 180
+
         time.sleep(20)
