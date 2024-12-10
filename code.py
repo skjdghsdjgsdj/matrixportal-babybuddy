@@ -165,7 +165,7 @@ class UI:
         else:
             last_feeding_str = self.delta_to_str(last_feeding)
             if last_feeding_method is not None:
-                last_feeding_str = " " + last_feeding_method
+                last_feeding_str += " " + last_feeding_method
 
         self.update_label(UI.FEEDING, last_feeding_str, 0x444444 if is_feeding_timer_running else 0x440000)
 
