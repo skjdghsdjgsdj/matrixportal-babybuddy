@@ -296,7 +296,8 @@ while True:
         )
         matrixportal.display.auto_refresh = True
     except Exception as e:
-        print(e)
+        import traceback
+        traceback.print_exception(e)
     finally:
         now = time.monotonic()
         end = now + 20
