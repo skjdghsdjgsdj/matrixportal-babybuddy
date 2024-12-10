@@ -160,11 +160,14 @@ class UI:
         self.active_sleep_icon.hidden = not is_sleep_timer_running
         self.inactive_sleep_icon.hidden = is_sleep_timer_running
 
-        self.update_label(
-            UI.FEEDING,
-            self.delta_to_str(current_timer_started) if is_feeding_timer_running else (self.delta_to_str(last_feeding) + " " + last_feeding_method),
-            0x444444 if is_feeding_timer_running else 0x440000
-        )
+        if is_feeding_timer_running:
+            last_feeding_str = self.delta_to_str(current_timer_started)
+        else:
+            last_feeding_str = self.delta_to_str(last_feeding)
+            if last_feeding_method is not None:
+                last_feeding_str = " " + last_feeding_method
+
+        self.update_label(UI.FEEDING, last_feeding_str, 0x444444 if is_feeding_timer_running else 0x440000)
 
         self.update_label(
             UI.SLEEP,
