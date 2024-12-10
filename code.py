@@ -182,7 +182,7 @@ class UI:
     def init_labels(self) -> None:
         self.matrixportal.add_text(
             text_font = "/assets/big.bdf",
-            text_position = (self.matrixportal.display.width - 1, 0),
+            text_position = (self.matrixportal.display.width - 1, -1),
             text_anchor_point = (1, 0)
         )
 
@@ -194,13 +194,13 @@ class UI:
 
         self.matrixportal.add_text(
             text_font = "/assets/small.bdf",
-            text_position = (0, self.matrixportal.display.height - 1),
+            text_position = (0, self.matrixportal.display.height - 2),
             text_anchor_point = (0, 1)
         )
 
         self.matrixportal.add_text(
             text_font = "/assets/small.bdf",
-            text_position = (self.matrixportal.display.width + 1, self.matrixportal.display.height - 1),
+            text_position = (self.matrixportal.display.width + 1, self.matrixportal.display.height - 2),
             text_anchor_point = (1, 1)
         )
 
