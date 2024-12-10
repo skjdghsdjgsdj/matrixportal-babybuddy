@@ -51,12 +51,14 @@ class API:
 
     def get(self, url: str):
         api_key = os.getenv("BABYBUDDY_API_KEY")
+        full_url = os.getenv("BABYBUDDY_API_URL") + url
+        print(f"GET {full_url}")
         response = self.requests.get(
-			url = os.getenv("BABYBUDDY_API_URL") + url,
-			headers = {
-				"Authorization": f"Token {api_key}"
-			}
-		)
+            url = full_url,
+            headers = {
+                "Authorization": f"Token {api_key}"
+            }
+        )
 
         return response.json()
 
